@@ -8,13 +8,17 @@
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomNav } from './components/BottomNav';
+import { AuthScreen } from './components/AuthScreen';
+import { SessionProvider, useSession } from './contexts/SessionContext';
 import { ThemeProvider, useAppTheme } from './contexts/ThemeContext';
 
 function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <SessionProvider>
+          <AppContent />
+        </SessionProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
@@ -22,13 +26,14 @@ function App() {
 
 function AppContent() {
   const { mode, colors } = useAppTheme();
+  const { isAuthenticated } = useSession();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar
         barStyle={mode === 'dark' ? 'light-content' : 'dark-content'}
       />
-      <BottomNav />
+      {isAuthenticated ? <BottomNav /> : <AuthScreen />}
     </View>
   );
 }
