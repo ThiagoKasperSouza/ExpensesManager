@@ -1,13 +1,13 @@
-import { AntDesign, type AntDesignIconName } from '@react-native-vector-icons/ant-design';
-import { useMemo } from 'react';
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+  AntDesign,
+  type AntDesignIconName,
+} from '@react-native-vector-icons/ant-design';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { useAppTheme } from '../contexts/ThemeContext';
-import { mockExpenses, type Expense } from '../mocks/expenses';
+import { useSession } from '../contexts/SessionContext';
+import type { Expense } from '../mocks/expenses';
 
 const categoryIcons: AntDesignIconName[] = [
   'coffee',
@@ -44,137 +44,176 @@ function groupExpensesByDate(expenses: Expense[]) {
 
 export function Expenses() {
   const { colors } = useAppTheme();
-  const groupedExpenses = useMemo(() => groupExpensesByDate(mockExpenses), []);
-  const total = mockExpenses.reduce((sum, expense) => sum + expense.value, 0);
+  const { expenses } = useSession();
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const groupedExpenses = useMemo(
+    () => groupExpensesByDate(expenses),
+    [expenses],
+  );
+  const total = expenses.reduce((sum, expense) => sum + expense.value, 0);
 
   return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.muted }]}>
-            SEU CONTROLE FINANCEIRO
-          </Text>
-          <Text style={[styles.title, { color: colors.text }]}>Despesas</Text>
-        </View>
-        <View
-          style={[
-            styles.headerIcon,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <AntDesign name="bars" size={20} color={colors.text} />
-        </View>
-      </View>
-
-      <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
-        <View style={styles.summaryTop}>
+    <>
+      <ScrollView
+        style={[styles.screen, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
           <View>
-            <Text style={[styles.summaryLabel, { color: colors.muted }]}>
-              Total registrado
+            <Text style={[styles.eyebrow, { color: colors.muted }]}>
+              SEU CONTROLE FINANCEIRO
             </Text>
-            <Text style={[styles.total, { color: colors.text }]}>
-              {currencyFormatter.format(total)}
-            </Text>
+            <Text style={[styles.title, { color: colors.text }]}>Despesas</Text>
           </View>
-          <View style={[styles.summaryIcon, { backgroundColor: `${colors.primary}18` }]}>
-            <AntDesign name="wallet" size={22} color={colors.primary} />
+          <Pressable
+            accessibilityLabel="Cadastrar despesa"
+            accessibilityRole="button"
+            onPress={() => setIsFormVisible(true)}
+            style={[styles.addButton, { backgroundColor: colors.primary }]}
+          >
+            <AntDesign name="plus" size={18} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Nova despesa</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+          <View style={styles.summaryTop}>
+            <View>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>
+                Total registrado
+              </Text>
+              <Text style={[styles.total, { color: colors.text }]}>
+                {currencyFormatter.format(total)}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.summaryIcon,
+                { backgroundColor: `${colors.primary}18` },
+              ]}
+            >
+              <AntDesign name="wallet" size={22} color={colors.primary} />
+            </View>
+          </View>
+          <View
+            style={[styles.summaryDivider, { backgroundColor: colors.border }]}
+          />
+          <View style={styles.summaryFooter}>
+            <View style={styles.summaryMetric}>
+              <AntDesign name="profile" size={14} color={colors.muted} />
+              <Text style={[styles.metricText, { color: colors.muted }]}>
+                {expenses.length} lançamentos
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.variableBadge,
+                { backgroundColor: `${colors.primary}18` },
+              ]}
+            >
+              <Text style={[styles.variableText, { color: colors.primary }]}>
+                Variáveis
+              </Text>
+            </View>
           </View>
         </View>
-        <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.summaryFooter}>
-          <View style={styles.summaryMetric}>
-            <AntDesign name="profile" size={14} color={colors.muted} />
-            <Text style={[styles.metricText, { color: colors.muted }]}>
-              {mockExpenses.length} lançamentos
-            </Text>
-          </View>
-          <View style={[styles.variableBadge, { backgroundColor: `${colors.primary}18` }]}>
-            <Text style={[styles.variableText, { color: colors.primary }]}>
-              Variáveis
-            </Text>
-          </View>
+
+        <View style={styles.listHeading}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Histórico
+          </Text>
+          <Text style={[styles.listCount, { color: colors.muted }]}>
+            {expenses.length} itens
+          </Text>
         </View>
-      </View>
 
-      <View style={styles.listHeading}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Histórico
-        </Text>
-        <Text style={[styles.listCount, { color: colors.muted }]}>
-          {mockExpenses.length} itens
-        </Text>
-      </View>
+        {groupedExpenses.map(([date, dateExpenses]) => (
+          <View key={date} style={styles.dateGroup}>
+            <View style={styles.dateHeading}>
+              <View
+                style={[styles.dateDot, { backgroundColor: colors.primary }]}
+              />
+              <Text style={[styles.dateText, { color: colors.text }]}>
+                {formatDate(date)}
+              </Text>
+              <View
+                style={[styles.dateLine, { backgroundColor: colors.border }]}
+              />
+            </View>
 
-      {groupedExpenses.map(([date, expenses]) => (
-        <View key={date} style={styles.dateGroup}>
-          <View style={styles.dateHeading}>
-            <View style={[styles.dateDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.dateText, { color: colors.text }]}>
-              {formatDate(date)}
-            </Text>
-            <View style={[styles.dateLine, { backgroundColor: colors.border }]} />
-          </View>
+            <View style={styles.expenseList}>
+              {dateExpenses.map(expense => {
+                const colorIndex = (expense.id - 1) % categoryColors.length;
 
-          <View style={styles.expenseList}>
-            {expenses.map(expense => {
-              const colorIndex = (expense.id - 1) % categoryColors.length;
-
-              return (
-                <View
-                  key={expense.id}
-                  style={[
-                    styles.expenseCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                  ]}
-                >
+                return (
                   <View
+                    key={expense.id}
                     style={[
-                      styles.categoryIcon,
-                      { backgroundColor: categoryColors[colorIndex] },
+                      styles.expenseCard,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                      },
                     ]}
                   >
-                    <AntDesign
-                      name={categoryIcons[colorIndex]}
-                      size={19}
-                      color="#433B35"
-                    />
-                  </View>
-                  <View style={styles.expenseDetails}>
-                    <Text
-                      numberOfLines={1}
-                      style={[styles.expenseName, { color: colors.text }]}
+                    <View
+                      style={[
+                        styles.categoryIcon,
+                        { backgroundColor: categoryColors[colorIndex] },
+                      ]}
                     >
-                      {expense.description}
-                    </Text>
-                    <View style={styles.expenseMetadata}>
-                      <Text style={[styles.metadataText, { color: colors.muted }]}>
-                        {expense.paymentMethod}
-                      </Text>
-                      <View
-                        style={[
-                          styles.metadataDot,
-                          { backgroundColor: categoryColors[colorIndex] },
-                        ]}
+                      <AntDesign
+                        name={categoryIcons[colorIndex]}
+                        size={19}
+                        color="#433B35"
                       />
-                      <Text style={[styles.metadataText, { color: colors.muted }]}>
-                        {expense.expenseType === 'VARIABLE' ? 'Variável' : 'Fixa'}
-                      </Text>
                     </View>
+                    <View style={styles.expenseDetails}>
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.expenseName, { color: colors.text }]}
+                      >
+                        {expense.description}
+                      </Text>
+                      <View style={styles.expenseMetadata}>
+                        <Text
+                          style={[styles.metadataText, { color: colors.muted }]}
+                        >
+                          {expense.paymentMethod}
+                        </Text>
+                        <View
+                          style={[
+                            styles.metadataDot,
+                            { backgroundColor: categoryColors[colorIndex] },
+                          ]}
+                        />
+                        <Text
+                          style={[styles.metadataText, { color: colors.muted }]}
+                        >
+                          {expense.expenseType === 'VARIABLE'
+                            ? 'Variável'
+                            : 'Fixa'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={[styles.expenseAmount, { color: colors.text }]}
+                    >
+                      −{currencyFormatter.format(expense.value)}
+                    </Text>
                   </View>
-                  <Text style={[styles.expenseAmount, { color: colors.text }]}>
-                    −{currencyFormatter.format(expense.value)}
-                  </Text>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
-        </View>
-      ))}
-    </ScrollView>
+        ))}
+      </ScrollView>
+      <ExpenseFormModal
+        visible={isFormVisible}
+        onClose={() => setIsFormVisible(false)}
+      />
+    </>
   );
 }
 
@@ -192,6 +231,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 22,
+  },
+  addButton: {
+    alignItems: 'center',
+    borderRadius: 13,
+    flexDirection: 'row',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   eyebrow: {
     fontSize: 10,
