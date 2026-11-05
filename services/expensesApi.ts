@@ -6,6 +6,17 @@ const API_ORIGIN = 'http://localhost:8080';
 
 export type ExpenseInput = Omit<Expense, 'id'>;
 
+type ApiExpense = {
+  id: number | string;
+  description: string;
+  value: number | string;
+  date?: string;
+  dueDate?: string;
+  paymentMethod: Expense['paymentMethod'];
+  expenseType?: Expense['expenseType'];
+  type?: Expense['expenseType'];
+};
+
 type CsrfResponse = {
   headerName: string;
   parameterName: string;
@@ -40,6 +51,59 @@ async function requireSuccessfulResponse(response: Response) {
   if (!response.ok) {
     throw new Error(await getErrorMessage(response));
   }
+}
+
+function parseExpense(value: unknown): Expense {
+  if (!value || typeof value !== 'object') {
+    throw new Error('A API retornou uma despesa em formato inválido.');
+  }
+
+  const item = value as Partial<ApiExpense>;
+  const id = Number(item.id);
+  const amount = Number(item.value);
+  const date = item.date ?? item.dueDate;
+  const expenseType = item.expenseType ?? item.type;
+
+  if (
+    !Number.isSafeInteger(id) ||
+    typeof item.description !== 'string' ||
+    !Number.isFinite(amount) ||
+    typeof date !== 'string' ||
+    (item.paymentMethod !== 'CREDIT_CARD' &&
+      item.paymentMethod !== 'DEBIT_CARD' &&
+      item.paymentMethod !== 'PIX') ||
+    (expenseType !== 'FIXED' && expenseType !== 'VARIABLE')
+  ) {
+    throw new Error('A API retornou uma despesa com campos inválidos.');
+  }
+
+  return {
+    id,
+    description: item.description,
+    value: amount,
+    date,
+    paymentMethod: item.paymentMethod,
+    expenseType,
+  };
+}
+
+function parseExpensesResponse(value: unknown): Expense[] {
+  const entries = Array.isArray(value)
+    ? value
+    : value &&
+      typeof value === 'object' &&
+      'content' in value &&
+      Array.isArray(value.content)
+    ? value.content
+    : undefined;
+
+  if (!entries) {
+    throw new Error(
+      'A API retornou uma lista de despesas em formato inválido.',
+    );
+  }
+
+  return entries.map(parseExpense);
 }
 
 async function getCookieHeader(requireSession = false) {
@@ -176,6 +240,33 @@ export async function createExpense(input: ExpenseInput, csrfToken: string) {
     ...input,
     id: Date.now(),
   };
+}
+
+export async function getExpenses(): Promise<Expense[]> {
+  const cookieHeader = await getCookieHeader(true);
+  if (!cookieHeader) {
+    throw new Error('Sua sessão expirou. Faça login novamente.');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/expenses`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      Cookie: cookieHeader,
+    },
+  });
+
+  await requireSuccessfulResponse(response);
+
+  let responseBody: unknown;
+  try {
+    responseBody = await response.json();
+  } catch {
+    throw new Error('A API retornou uma resposta inválida ao listar despesas.');
+  }
+
+  return parseExpensesResponse(responseBody);
 }
 
 export async function logout(csrfToken: string) {

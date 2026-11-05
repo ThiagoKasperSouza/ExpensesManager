@@ -3,7 +3,14 @@ import {
   type AntDesignIconName,
 } from '@react-native-vector-icons/ant-design';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { ExpenseFormModal } from '../components/ExpenseFormModal';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useSession } from '../contexts/SessionContext';
@@ -44,7 +51,8 @@ function groupExpensesByDate(expenses: Expense[]) {
 
 export function Expenses() {
   const { colors } = useAppTheme();
-  const { expenses } = useSession();
+  const { expenses, isLoadingExpenses, expensesError, refreshExpenses } =
+    useSession();
   const [isFormVisible, setIsFormVisible] = useState(false);
   const groupedExpenses = useMemo(
     () => groupExpensesByDate(expenses),
@@ -127,6 +135,39 @@ export function Expenses() {
             {expenses.length} itens
           </Text>
         </View>
+
+        {isLoadingExpenses ? (
+          <View style={styles.loadState}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.stateText, { color: colors.muted }]}>
+              Carregando despesas…
+            </Text>
+          </View>
+        ) : null}
+
+        {expensesError ? (
+          <View
+            style={[
+              styles.errorCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={styles.errorText}>{expensesError}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={refreshExpenses}
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.retryText}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!isLoadingExpenses && !expensesError && expenses.length === 0 ? (
+          <Text style={[styles.stateText, { color: colors.muted }]}>
+            Nenhuma despesa cadastrada.
+          </Text>
+        ) : null}
 
         {groupedExpenses.map(([date, dateExpenses]) => (
           <View key={date} style={styles.dateGroup}>
@@ -241,6 +282,42 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  loadState: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  stateText: {
+    fontSize: 13,
+    paddingVertical: 16,
+    textAlign: 'center',
+  },
+  errorCard: {
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 16,
+    padding: 16,
+  },
+  errorText: {
+    color: '#D14343',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  retryButton: {
+    borderRadius: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retryText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',

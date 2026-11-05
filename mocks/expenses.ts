@@ -1,9 +1,11 @@
+export type PaymentMethod = 'CREDIT_CARD' | 'DEBIT_CARD' | 'PIX';
+
 export type Expense = {
   id: number;
   description: string;
   value: number;
   date: string;
-  paymentMethod: string;
+  paymentMethod: PaymentMethod;
   expenseType: 'FIXED' | 'VARIABLE';
 };
 

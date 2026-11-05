@@ -3,7 +3,15 @@ import {
   type AntDesignIconName,
 } from '@react-native-vector-icons/ant-design';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useSession } from '../contexts/SessionContext';
 import type { Expense } from '../mocks/expenses';
@@ -66,7 +74,8 @@ function getPeriodLabel(expenses: Expense[]) {
 
 export function Home() {
   const { colors } = useAppTheme();
-  const { expenses } = useSession();
+  const { expenses, isLoadingExpenses, expensesError, refreshExpenses } =
+    useSession();
   const [search, setSearch] = useState('');
   const expenseGroups = useMemo(() => getExpenseGroups(expenses), [expenses]);
   const totalExpenses = expenses.reduce(
@@ -184,6 +193,33 @@ export function Home() {
         </View>
       </View>
 
+      {isLoadingExpenses ? (
+        <View style={styles.loadState}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={[styles.stateText, { color: colors.muted }]}>
+            Carregando despesas…
+          </Text>
+        </View>
+      ) : null}
+
+      {expensesError ? (
+        <View
+          style={[
+            styles.errorCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Text style={styles.errorText}>{expensesError}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={refreshExpenses}
+            style={[styles.retryButton, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.retryText}>Tentar novamente</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={[styles.breakdownCard, { backgroundColor: colors.surface }]}>
         {visibleGroups.length > 0 ? (
           visibleGroups.map((group, index) => {
@@ -249,11 +285,13 @@ export function Home() {
               </View>
             );
           })
-        ) : (
+        ) : !isLoadingExpenses && !expensesError ? (
           <Text style={[styles.emptyText, { color: colors.muted }]}>
-            Nenhuma despesa encontrada.
+            {search
+              ? 'Nenhuma despesa encontrada.'
+              : 'Nenhuma despesa cadastrada.'}
           </Text>
-        )}
+        ) : null}
       </View>
 
       <View style={styles.footerNote}>
@@ -388,6 +426,40 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: 'center',
     width: 38,
+  },
+  loadState: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  stateText: {
+    fontSize: 13,
+  },
+  errorCard: {
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+    padding: 16,
+  },
+  errorText: {
+    color: '#D14343',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  retryButton: {
+    borderRadius: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   breakdownCard: {
     borderRadius: 18,

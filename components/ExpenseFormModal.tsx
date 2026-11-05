@@ -14,12 +14,18 @@ import {
 } from 'react-native';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useSession } from '../contexts/SessionContext';
-import type { Expense } from '../mocks/expenses';
+import type { Expense, PaymentMethod } from '../mocks/expenses';
 
 type ExpenseFormModalProps = {
   visible: boolean;
   onClose: () => void;
 };
+
+const paymentMethods: { value: PaymentMethod; label: string }[] = [
+  { value: 'CREDIT_CARD', label: 'Crédito' },
+  { value: 'DEBIT_CARD', label: 'Débito' },
+  { value: 'PIX', label: 'PIX' },
+];
 
 function getTodayISODate() {
   const today = new Date();
@@ -62,7 +68,7 @@ export function ExpenseFormModal({ visible, onClose }: ExpenseFormModalProps) {
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
   const [date, setDate] = useState(getTodayISODate);
-  const [paymentMethod, setPaymentMethod] = useState('PIX');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
   const [expenseType, setExpenseType] =
     useState<Expense['expenseType']>('VARIABLE');
   const [error, setError] = useState<string>();
@@ -86,11 +92,6 @@ export function ExpenseFormModal({ visible, onClose }: ExpenseFormModalProps) {
       return;
     }
 
-    if (!paymentMethod.trim()) {
-      setError('Informe a forma de pagamento.');
-      return;
-    }
-
     setError(undefined);
     setIsSubmitting(true);
 
@@ -99,7 +100,7 @@ export function ExpenseFormModal({ visible, onClose }: ExpenseFormModalProps) {
         description: description.trim(),
         value: amount,
         date,
-        paymentMethod: paymentMethod.trim(),
+        paymentMethod,
         expenseType,
       });
       setDescription('');
@@ -227,15 +228,40 @@ export function ExpenseFormModal({ visible, onClose }: ExpenseFormModalProps) {
               <Text style={[styles.label, { color: colors.text }]}>
                 Forma de pagamento
               </Text>
-              <TextInput
-                accessibilityLabel="Forma de pagamento"
-                autoCapitalize="words"
-                onChangeText={setPaymentMethod}
-                placeholder="Ex.: PIX"
-                placeholderTextColor={colors.muted}
-                style={inputStyle}
-                value={paymentMethod}
-              />
+              <View style={styles.typeOptions}>
+                {paymentMethods.map(method => {
+                  const selected = paymentMethod === method.value;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      key={method.value}
+                      onPress={() => setPaymentMethod(method.value)}
+                      style={[
+                        styles.typeOption,
+                        {
+                          backgroundColor: selected
+                            ? `${colors.primary}18`
+                            : colors.background,
+                          borderColor: selected
+                            ? colors.primary
+                            : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.typeOptionText,
+                          { color: selected ? colors.primary : colors.muted },
+                        ]}
+                      >
+                        {method.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               <Text
                 style={[styles.label, styles.typeLabel, { color: colors.text }]}
