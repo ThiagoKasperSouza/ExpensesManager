@@ -12,6 +12,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MonthlyIncomeModal } from '../components/MonthlyIncomeModal';
+import { useMonthlyBudget } from '../contexts/MonthlyBudgetContext';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useSession } from '../contexts/SessionContext';
 import type { Expense } from '../mocks/expenses';
@@ -55,17 +57,8 @@ function getExpenseGroups(expenses: Expense[]) {
   return Object.values(groups).sort((a, b) => b.total - a.total);
 }
 
-function getPeriodLabel(expenses: Expense[]) {
-  const latestDate = expenses
-    .map(expense => expense.date)
-    .sort()
-    .at(-1);
-
-  if (!latestDate) {
-    return 'Sem lançamentos';
-  }
-
-  const [year, month] = latestDate.split('-').map(Number);
+function getPeriodLabel(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number);
   return new Intl.DateTimeFormat('pt-BR', {
     month: 'long',
     year: 'numeric',
@@ -76,12 +69,28 @@ export function Home() {
   const { colors } = useAppTheme();
   const { expenses, isLoadingExpenses, expensesError, refreshExpenses } =
     useSession();
+  const { month, monthlyIncome, isLoadingIncome, incomeError } =
+    useMonthlyBudget();
   const [search, setSearch] = useState('');
-  const expenseGroups = useMemo(() => getExpenseGroups(expenses), [expenses]);
-  const totalExpenses = expenses.reduce(
+  const [isIncomeModalVisible, setIsIncomeModalVisible] = useState(false);
+  const monthlyExpenses = useMemo(
+    () => expenses.filter(expense => expense.date.slice(0, 7) === month),
+    [expenses, month],
+  );
+  const expenseGroups = useMemo(
+    () => getExpenseGroups(monthlyExpenses),
+    [monthlyExpenses],
+  );
+  const totalExpenses = monthlyExpenses.reduce(
     (total, expense) => total + expense.value,
     0,
   );
+  const remainingBalance =
+    monthlyIncome === null ? null : monthlyIncome - totalExpenses;
+  const spentPercentage =
+    monthlyIncome && monthlyIncome > 0
+      ? Math.min((totalExpenses / monthlyIncome) * 100, 100)
+      : 0;
   const visibleGroups = expenseGroups.filter(group =>
     group.description
       .toLocaleLowerCase('pt-BR')
@@ -89,218 +98,354 @@ export function Home() {
   );
 
   return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.muted }]}>
-            RESUMO FINANCEIRO
-          </Text>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Visão geral
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.periodChip,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <AntDesign name="calendar" size={14} color={colors.primary} />
-          <Text style={[styles.periodText, { color: colors.text }]}>
-            {getPeriodLabel(expenses)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.metrics}>
-        <View style={[styles.metricCard, { backgroundColor: colors.surface }]}>
-          <View style={styles.metricHeader}>
-            <View
-              style={[
-                styles.metricIcon,
-                { backgroundColor: `${colors.primary}18` },
-              ]}
-            >
-              <AntDesign name="arrow-down" size={16} color={colors.primary} />
-            </View>
-            <Text style={[styles.metricLabel, { color: colors.muted }]}>
-              Despesas
-            </Text>
-          </View>
-          <Text style={[styles.metricValue, { color: colors.text }]}>
-            {currencyFormatter.format(totalExpenses)}
-          </Text>
-          <Text style={[styles.metricCaption, { color: colors.muted }]}>
-            {expenses.length} lançamentos
-          </Text>
-        </View>
-
-        <View style={[styles.metricCard, { backgroundColor: colors.surface }]}>
-          <View style={styles.metricHeader}>
-            <View style={[styles.metricIcon, styles.incomeIcon]}>
-              <AntDesign name="arrow-up" size={16} color="#359B72" />
-            </View>
-            <Text style={[styles.metricLabel, { color: colors.muted }]}>
-              Receitas
-            </Text>
-          </View>
-          <Text style={[styles.metricValue, { color: colors.text }]}>—</Text>
-          <Text style={[styles.metricCaption, { color: colors.muted }]}>
-            Sem dados cadastrados
-          </Text>
-        </View>
-      </View>
-
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
+    <>
+      <ScrollView
+        style={[styles.screen, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <AntDesign name="search" size={17} color={colors.muted} />
-        <TextInput
-          accessibilityLabel="Buscar despesas"
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Buscar despesa"
-          placeholderTextColor={colors.muted}
-          style={[styles.searchInput, { color: colors.text }]}
-          returnKeyType="search"
-        />
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <View>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Despesas por descrição
-          </Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.muted }]}>
-            Distribuição do total registrado
-          </Text>
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.eyebrow, { color: colors.muted }]}>
+              RESUMO FINANCEIRO
+            </Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Visão geral
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.periodChip,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <AntDesign name="calendar" size={14} color={colors.primary} />
+            <Text style={[styles.periodText, { color: colors.text }]}>
+              {getPeriodLabel(month)}
+            </Text>
+          </View>
         </View>
-        <View
-          style={[
-            styles.chartIcon,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <AntDesign name="pie-chart" size={17} color={colors.primary} />
-        </View>
-      </View>
 
-      {isLoadingExpenses ? (
-        <View style={styles.loadState}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={[styles.stateText, { color: colors.muted }]}>
-            Carregando despesas…
-          </Text>
-        </View>
-      ) : null}
+        <View style={styles.metrics}>
+          <View
+            style={[styles.metricCard, { backgroundColor: colors.surface }]}
+          >
+            <View style={styles.metricHeader}>
+              <View
+                style={[
+                  styles.metricIcon,
+                  { backgroundColor: `${colors.primary}18` },
+                ]}
+              >
+                <AntDesign name="arrow-down" size={16} color={colors.primary} />
+              </View>
+              <Text style={[styles.metricLabel, { color: colors.muted }]}>
+                Despesas
+              </Text>
+            </View>
+            <Text style={[styles.metricValue, { color: colors.text }]}>
+              {currencyFormatter.format(totalExpenses)}
+            </Text>
+            <Text style={[styles.metricCaption, { color: colors.muted }]}>
+              {monthlyExpenses.length} lançamentos neste mês
+            </Text>
+          </View>
 
-      {expensesError ? (
-        <View
-          style={[
-            styles.errorCard,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Text style={styles.errorText}>{expensesError}</Text>
           <Pressable
             accessibilityRole="button"
-            onPress={refreshExpenses}
-            style={[styles.retryButton, { backgroundColor: colors.primary }]}
+            accessibilityLabel="Editar receita mensal"
+            disabled={isLoadingIncome}
+            onPress={() => setIsIncomeModalVisible(true)}
+            style={[styles.metricCard, { backgroundColor: colors.surface }]}
           >
-            <Text style={styles.retryText}>Tentar novamente</Text>
+            <View style={styles.metricHeader}>
+              <View style={[styles.metricIcon, styles.incomeIcon]}>
+                <AntDesign name="arrow-up" size={16} color="#359B72" />
+              </View>
+              <Text style={[styles.metricLabel, { color: colors.muted }]}>
+                Receita do mês
+              </Text>
+            </View>
+            {isLoadingIncome ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[styles.metricValue, { color: colors.text }]}
+              >
+                {monthlyIncome === null
+                  ? 'Definir'
+                  : currencyFormatter.format(monthlyIncome)}
+              </Text>
+            )}
+            <Text style={[styles.metricCaption, { color: colors.muted }]}>
+              Toque para editar
+            </Text>
           </Pressable>
         </View>
-      ) : null}
 
-      <View style={[styles.breakdownCard, { backgroundColor: colors.surface }]}>
-        {visibleGroups.length > 0 ? (
-          visibleGroups.map((group, index) => {
-            const percentage =
-              totalExpenses > 0 ? (group.total / totalExpenses) * 100 : 0;
-            const color = categoryColors[index % categoryColors.length];
-
-            return (
-              <View key={group.description} style={styles.breakdownRow}>
-                <View style={styles.breakdownTop}>
-                  <View style={styles.categoryName}>
-                    <View
-                      style={[
-                        styles.categoryIcon,
-                        { backgroundColor: `${color}25` },
-                      ]}
-                    >
-                      <AntDesign
-                        name={categoryIcons[index % categoryIcons.length]}
-                        size={15}
-                        color={color}
-                      />
-                    </View>
-                    <View style={styles.categoryLabels}>
-                      <Text
-                        numberOfLines={1}
-                        style={[styles.categoryTitle, { color: colors.text }]}
-                      >
-                        {group.description}
-                      </Text>
-                      <Text
-                        style={[styles.categoryCount, { color: colors.muted }]}
-                      >
-                        {group.count}{' '}
-                        {group.count === 1 ? 'lançamento' : 'lançamentos'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.amountLabels}>
-                    <Text
-                      style={[styles.categoryAmount, { color: colors.text }]}
-                    >
-                      {currencyFormatter.format(group.total)}
-                    </Text>
-                    <Text style={[styles.percentage, { color: colors.muted }]}>
-                      {percentage.toFixed(0)}%
-                    </Text>
-                  </View>
-                </View>
+        <View
+          style={[
+            styles.balanceCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.balanceHeader}>
+            <View style={styles.balanceTitleGroup}>
+              <View
+                style={[
+                  styles.balanceIcon,
+                  { backgroundColor: `${colors.primary}18` },
+                ]}
+              >
+                <AntDesign
+                  name={
+                    remainingBalance !== null && remainingBalance < 0
+                      ? 'warning'
+                      : 'check'
+                  }
+                  size={16}
+                  color={
+                    remainingBalance !== null && remainingBalance < 0
+                      ? '#D14343'
+                      : colors.primary
+                  }
+                />
+              </View>
+              <View>
+                <Text style={[styles.balanceLabel, { color: colors.muted }]}>
+                  {remainingBalance !== null && remainingBalance < 0
+                    ? 'Acima da receita'
+                    : 'Ainda disponível'}
+                </Text>
+                {monthlyIncome === null ? (
+                  <Text style={[styles.balanceHint, { color: colors.muted }]}>
+                    Defina sua receita para calcular o saldo
+                  </Text>
+                ) : (
+                  <Text
+                    style={[
+                      styles.balanceAmount,
+                      remainingBalance !== null && remainingBalance < 0
+                        ? styles.negativeBalance
+                        : { color: colors.text },
+                    ]}
+                  >
+                    {currencyFormatter.format(Math.abs(remainingBalance ?? 0))}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                monthlyIncome === null ? 'Definir receita' : 'Editar receita'
+              }
+              disabled={isLoadingIncome}
+              onPress={() => setIsIncomeModalVisible(true)}
+              hitSlop={8}
+              style={styles.editIncomeButton}
+            >
+              <AntDesign name="edit" size={16} color={colors.primary} />
+              <Text style={[styles.editIncomeText, { color: colors.primary }]}>
+                {monthlyIncome === null ? 'Definir' : 'Editar'}
+              </Text>
+            </Pressable>
+          </View>
+          {incomeError ? (
+            <Text style={styles.incomeError}>{incomeError}</Text>
+          ) : null}
+          {monthlyIncome !== null ? (
+            <>
+              <View
+                style={[
+                  styles.balanceTrack,
+                  { backgroundColor: colors.background },
+                ]}
+              >
                 <View
                   style={[
-                    styles.progressTrack,
-                    { backgroundColor: colors.background },
+                    styles.balanceProgress,
+                    {
+                      width: `${spentPercentage}%`,
+                    },
+                    remainingBalance !== null && remainingBalance < 0
+                      ? styles.negativeProgress
+                      : { backgroundColor: colors.primary },
                   ]}
-                >
+                />
+              </View>
+              <View style={styles.balanceFoot}>
+                <Text style={[styles.balanceFootText, { color: colors.muted }]}>
+                  {currencyFormatter.format(totalExpenses)} gastos
+                </Text>
+                <Text style={[styles.balanceFootText, { color: colors.muted }]}>
+                  {currencyFormatter.format(monthlyIncome)} receita
+                </Text>
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <AntDesign name="search" size={17} color={colors.muted} />
+          <TextInput
+            accessibilityLabel="Buscar despesas"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Buscar despesa"
+            placeholderTextColor={colors.muted}
+            style={[styles.searchInput, { color: colors.text }]}
+            returnKeyType="search"
+          />
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Despesas por descrição
+            </Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.muted }]}>
+              Distribuição do total registrado
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.chartIcon,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <AntDesign name="pie-chart" size={17} color={colors.primary} />
+          </View>
+        </View>
+
+        {isLoadingExpenses ? (
+          <View style={styles.loadState}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.stateText, { color: colors.muted }]}>
+              Carregando despesas…
+            </Text>
+          </View>
+        ) : null}
+
+        {expensesError ? (
+          <View
+            style={[
+              styles.errorCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={styles.errorText}>{expensesError}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={refreshExpenses}
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.retryText}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View
+          style={[styles.breakdownCard, { backgroundColor: colors.surface }]}
+        >
+          {visibleGroups.length > 0 ? (
+            visibleGroups.map((group, index) => {
+              const percentage =
+                totalExpenses > 0 ? (group.total / totalExpenses) * 100 : 0;
+              const color = categoryColors[index % categoryColors.length];
+
+              return (
+                <View key={group.description} style={styles.breakdownRow}>
+                  <View style={styles.breakdownTop}>
+                    <View style={styles.categoryName}>
+                      <View
+                        style={[
+                          styles.categoryIcon,
+                          { backgroundColor: `${color}25` },
+                        ]}
+                      >
+                        <AntDesign
+                          name={categoryIcons[index % categoryIcons.length]}
+                          size={15}
+                          color={color}
+                        />
+                      </View>
+                      <View style={styles.categoryLabels}>
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.categoryTitle, { color: colors.text }]}
+                        >
+                          {group.description}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.categoryCount,
+                            { color: colors.muted },
+                          ]}
+                        >
+                          {group.count}{' '}
+                          {group.count === 1 ? 'lançamento' : 'lançamentos'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.amountLabels}>
+                      <Text
+                        style={[styles.categoryAmount, { color: colors.text }]}
+                      >
+                        {currencyFormatter.format(group.total)}
+                      </Text>
+                      <Text
+                        style={[styles.percentage, { color: colors.muted }]}
+                      >
+                        {percentage.toFixed(0)}%
+                      </Text>
+                    </View>
+                  </View>
                   <View
                     style={[
-                      styles.progressFill,
-                      { backgroundColor: color, width: `${percentage}%` },
+                      styles.progressTrack,
+                      { backgroundColor: colors.background },
                     ]}
-                  />
+                  >
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { backgroundColor: color, width: `${percentage}%` },
+                      ]}
+                    />
+                  </View>
                 </View>
-              </View>
-            );
-          })
-        ) : !isLoadingExpenses && !expensesError ? (
-          <Text style={[styles.emptyText, { color: colors.muted }]}>
-            {search
-              ? 'Nenhuma despesa encontrada.'
-              : 'Nenhuma despesa cadastrada.'}
-          </Text>
-        ) : null}
-      </View>
+              );
+            })
+          ) : !isLoadingExpenses && !expensesError ? (
+            <Text style={[styles.emptyText, { color: colors.muted }]}>
+              {search
+                ? 'Nenhuma despesa encontrada.'
+                : 'Nenhuma despesa cadastrada.'}
+            </Text>
+          ) : null}
+        </View>
 
-      <View style={styles.footerNote}>
-        <AntDesign name="info-circle" size={14} color={colors.muted} />
-        <Text style={[styles.footerText, { color: colors.muted }]}>
-          Os valores são calculados com base nos dados disponíveis.
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.footerNote}>
+          <AntDesign name="info-circle" size={14} color={colors.muted} />
+          <Text style={[styles.footerText, { color: colors.muted }]}>
+            Os valores são calculados com base nos dados disponíveis.
+          </Text>
+        </View>
+      </ScrollView>
+      <MonthlyIncomeModal
+        visible={isIncomeModalVisible}
+        onClose={() => setIsIncomeModalVisible(false)}
+      />
+    </>
   );
 }
 
@@ -349,6 +494,87 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
+  },
+  balanceCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 2,
+    marginBottom: 22,
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  balanceHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  balanceTitleGroup: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  balanceIcon: {
+    alignItems: 'center',
+    borderRadius: 11,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  balanceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  balanceAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  negativeBalance: {
+    color: '#D14343',
+  },
+  negativeProgress: {
+    backgroundColor: '#D14343',
+  },
+  balanceHint: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  editIncomeButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 5,
+    padding: 6,
+  },
+  editIncomeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  balanceTrack: {
+    borderRadius: 5,
+    height: 8,
+    marginTop: 16,
+    overflow: 'hidden',
+  },
+  balanceProgress: {
+    borderRadius: 5,
+    height: '100%',
+  },
+  balanceFoot: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  balanceFootText: {
+    fontSize: 10,
+  },
+  incomeError: {
+    color: '#D14343',
+    fontSize: 11,
+    marginTop: 10,
   },
   metricCard: {
     borderRadius: 18,

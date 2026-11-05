@@ -9,6 +9,7 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomNav } from './components/BottomNav';
 import { AuthScreen } from './components/AuthScreen';
+import { MonthlyBudgetProvider } from './contexts/MonthlyBudgetContext';
 import { SessionProvider, useSession } from './contexts/SessionContext';
 import { ThemeProvider, useAppTheme } from './contexts/ThemeContext';
 
@@ -17,7 +18,9 @@ function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <SessionProvider>
-          <AppContent />
+          <MonthlyBudgetProvider>
+            <AppContent />
+          </MonthlyBudgetProvider>
         </SessionProvider>
       </ThemeProvider>
     </SafeAreaProvider>
